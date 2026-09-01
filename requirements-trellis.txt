@@ -1,0 +1,18 @@
+# GPU-only dependencies for real TRELLIS inference (app/pipeline.py: run_trellis).
+# Do NOT install this on a machine without an NVIDIA GPU + CUDA — it will fail
+# (this laptop can't run it). Install this on the GPU box/pod that serves
+# reconstructions, following microsoft/TRELLIS's own setup instructions,
+# since exact versions are tied to your CUDA/torch build:
+#
+#   git clone https://github.com/microsoft/TRELLIS
+#   cd TRELLIS && ./setup.sh --basic --xformers --flash-attn --diffoctreerast --spconv --mipgaussian --kaolin --nvdiffrast
+#
+# Typical contents (pin to what setup.sh installs for your CUDA version):
+# torch
+# xformers
+# kaolin
+# nvdiffrast
+# diffoctreerast
+# spconv
+# flash-attn
+# ... plus TRELLIS itself (pip install -e ./TRELLIS or add it to PYTHONPATH)

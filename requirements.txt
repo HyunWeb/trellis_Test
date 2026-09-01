@@ -1,0 +1,11 @@
+# Base API service — installs fine on any machine (e.g. this laptop) for local dev.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# Used for the placeholder mesh pipeline (app/pipeline.py) so the full
+# upload -> job -> GLB -> three.js flow can be exercised without a GPU.
+trimesh==4.5.3
+numpy==1.26.4
