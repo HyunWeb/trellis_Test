@@ -8,12 +8,36 @@ tested without a GPU.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import numpy as np
 import trimesh
 
 from app.config import settings
+
+_trellis_pipeline = None
+_trellis_lock = threading.Lock()
+
+
+def _get_trellis_pipeline():
+    """Lazily construct the TRELLIS pipeline once per process (module-level
+    singleton) — it's expensive to load, so we don't want to do it per
+    request. Guarded by a lock since jobs run in FastAPI BackgroundTasks
+    threads and could otherwise race on first use.
+    """
+    global _trellis_pipeline
+    if _trellis_pipeline is None:
+        with _trellis_lock:
+            if _trellis_pipeline is None:
+                from trellis.pipelines import TrellisImageTo3DPipeline
+
+                pipeline = TrellisImageTo3DPipeline.from_pretrained(
+                    "microsoft/TRELLIS-image-large"
+                )
+                pipeline.cuda()
+                _trellis_pipeline = pipeline
+    return _trellis_pipeline
 
 
 def run(image_path: Path, output_path: Path) -> None:
@@ -37,33 +61,16 @@ def _run_placeholder(image_path: Path, output_path: Path) -> None:
 
 
 def _run_trellis(image_path: Path, output_path: Path) -> None:
-    """Real TRELLIS inference. Requires a GPU + requirements-trellis.txt.
+    """Real TRELLIS inference. Requires a GPU + requirements-trellis.txt."""
+    from PIL import Image
+    from trellis.utils import postprocessing_utils
 
-    TODO: implement once this service is deployed on a GPU machine. Rough
-    shape, following microsoft/TRELLIS's example scripts:
+    pipeline = _get_trellis_pipeline()
 
-        from PIL import Image
-        from trellis.pipelines import TrellisImageTo3DPipeline
-        from trellis.utils import postprocessing_utils
+    image = Image.open(image_path)
+    outputs = pipeline.run(image)  # -> gaussians, radiance field, mesh
 
-        pipeline = TrellisImageTo3DPipeline.from_pretrained(
-            "microsoft/TRELLIS-image-large"
-        )
-        pipeline.cuda()
-
-        image = Image.open(image_path)
-        outputs = pipeline.run(image)  # -> gaussians, radiance field, mesh
-
-        glb = postprocessing_utils.to_glb(
-            outputs["gaussian"][0], outputs["mesh"][0]
-        )
-        glb.export(output_path)
-
-    Load the pipeline once at process startup (module-level singleton)
-    rather than per-request — it's expensive to construct.
-    """
-    raise NotImplementedError(
-        "Real TRELLIS inference isn't wired up yet. Set "
-        "TRELLIS_USE_REAL_TRELLIS=false (default) to use the placeholder "
-        "pipeline, or implement _run_trellis on a GPU machine."
+    glb = postprocessing_utils.to_glb(
+        outputs["gaussian"][0], outputs["mesh"][0]
     )
+    glb.export(output_path)
