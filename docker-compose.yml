@@ -28,6 +28,10 @@ services:
       # 생성된 GLB의 URL이 올바르게 나온다.
       - TRELLIS_PUBLIC_BASE_URL=http://localhost:8000
       - TRELLIS_USE_REAL_TRELLIS=true
+      # spconv 기본값 'auto'는 반복 실행 시 더 빠르지만 첫 실행마다 벤치마킹
+      # 오버헤드가 붙는다 — 이 서비스는 요청마다 짧게 뜨는 단발성 추론이라
+      # TRELLIS README가 권장하는 대로 'native'로 고정.
+      - SPCONV_ALGO=native
     volumes:
       # 업로드/생성된 GLB 파일 — 컨테이너 재시작해도 유지.
       - trellis-data:/app/data
