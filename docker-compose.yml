@@ -1,0 +1,54 @@
+# 사용법: 이 저장소를 GPU가 있는 컴퓨터에 clone한 뒤 `docker compose up --build`.
+#
+# 전제조건(호스트 쪽):
+#   - NVIDIA GPU (VRAM 16GB 안팎 필요 — TRELLIS-image-large 기준 최대 약 16GB
+#     사용하는 걸 확인함)
+#   - 최신 NVIDIA 드라이버
+#   - Docker가 GPU를 볼 수 있게 설정돼 있어야 함:
+#       · Linux: nvidia-container-toolkit 설치
+#         (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+#       · Windows: Docker Desktop이 WSL2 백엔드를 쓰고, WSL2에 최신 NVIDIA
+#         드라이버가 GPU 패스스루를 지원하는 상태여야 함(대부분 최근 드라이버는
+#         기본 지원)
+#
+# 첫 빌드는 CUDA+PyTorch+flash-attn 등을 소스에서 빌드하느라 상당히 오래 걸릴
+# 수 있다(수십 분 단위). 첫 실행 시 TRELLIS-image-large 가중치를
+# HuggingFace에서 받는데, hf-cache 볼륨에 캐싱해두니 이후 재시작부턴 다시
+# 안 받는다.
+
+services:
+  trellis:
+    build: .
+    container_name: trellis-service
+    ports:
+      - "8000:8000"
+    environment:
+      # 로컬에서 직접 실행할 땐 이대로 두면 되고, 다른 서버(예: web 앱이
+      # 접속할 실제 공인 주소)에 배포한다면 여기를 그 주소로 바꿔야
+      # 생성된 GLB의 URL이 올바르게 나온다.
+      - TRELLIS_PUBLIC_BASE_URL=http://localhost:8000
+      - TRELLIS_USE_REAL_TRELLIS=true
+    volumes:
+      # 업로드/생성된 GLB 파일 — 컨테이너 재시작해도 유지.
+      - trellis-data:/app/data
+      # HuggingFace 모델 가중치 캐시 — 없으면 컨테이너를 새로 만들 때마다
+      # TRELLIS-image-large(수 GB)를 매번 다시 받아야 함.
+      - hf-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+
+volumes:
+  trellis-data:
+  hf-cache:
